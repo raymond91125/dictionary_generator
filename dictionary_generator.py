@@ -2,17 +2,19 @@
 """
 Created on Wed Mar  2 14:39:03 2016
 
+Contains classes solr_query, node and sisters.
+
 @author: dangeles
 """
-
 from urllib.request import urlopen
 import simplejson
 import json
 import numpy as np
 import pandas as pd
 import contextlib
+import copy
 
-class solr_query(object):
+class solr_query():
     """
     A solr_query class that stores URLs
     
@@ -25,6 +27,7 @@ class solr_query(object):
         
     def set_solr_url(self, url):
         self.solr_url= url
+        
     def add_query_url(self, url):
         self.query= url
         
@@ -40,7 +43,7 @@ class solr_query(object):
             raise Warning('URL is invalid or may have timed out')
         
 
-class node(object):
+class node():
     """
     A node is intended to be a single ontology term
     
@@ -73,13 +76,16 @@ class node(object):
         
     def add_daughter(self, daughter):
         self.daughters.append(daughter)
+        self.daughters= list(set(self.daughters))#prevent redundancy
     
     def add_parent(self, parent):
         self.parents.append(parent)
+        self.parents= list(set(self.parents))
     
     def add_annotation(self, gene):
-        self.gemes.append(gene)
-    
+        self.genes.append(gene)
+        self.genes= list(set(self.genes))
+        
     def throw_away(self):
         self.drop= True
     
@@ -118,6 +124,8 @@ class node(object):
         #go through the array, turning each line into a dictionary
         for entry in array_of_genes:
             self.genes.append(entry['id'][3:]) #remove WB: from the string
+        
+        self.genes= list(set(self.genes))
             
 class sisters(object):
     """
@@ -157,6 +165,13 @@ class sisters(object):
         for sister in sisters:
             self.geneset= self.geneset+sister.genes
         self.geneset= list(set(self.geneset))
+    
+    def add_dropped(self, sister):
+        if sister not in list:
+            self.dropped.append(sister)
+            
+        else:
+            self.dropped= self.dropped+sister
         
     def calc_similarity(self, method):
         """
@@ -181,45 +196,190 @@ class sisters(object):
             sister.calc_similarity(sim)
             
             if method == 'any':
-                if sim > threshold:
+                if sim > self.threshold:
                     self.dropsisters= 1
             avg+= sim
         
         avg= avg/len(self.sisters)
         
         if method == 'avg':
-            if avg > threshold:
+            if avg > self.threshold:
                 self.dropsisters= 1
     
     def kill(self):
         if self.dropsisters == 1:
             self.dropped= self.sisters            
-            self.sisters= []
             
     
     def trim(self, val):
-        
         if len(self.sisters) == 0:
             return
             
         for sister in self.sisters:
             if len(sister.genes) < val:
                 self.dropped.append(sister)
-                self.sisters.pop(self.sisters.index(sister))
+
+        
+        
+        
+        
+        
+        
+        
+        
         
 
 
+class ontology():
+    """
+    
+    """
+    
+    def __init__(self, name, cutoff, threshold, method, solr_url):
+        self.name= name
+        self.threshold= threshold
+        self.method= method
+        self.nodes= {}
+        self.family= {}
+        self.solr_url= solr_url
+        self.query_min_cutoff= 5
+        self.cutoff= cutoff
+        self.dropped= {}
+        self.good= {}
+        
+    def set_min_cutoff(self, x):
+        """
+        """
+        self.query_min_cutoff= x
+    
+    def add_nodes(self, query_terms, query_readable):
+        """
+        """
+        sq= solr_query(self.solr_url, query_terms(self.query_min_cutoff))
+        rsp_terms= sq.open_query()
+        sd= solr_query(self.solr_url, query_readable)
+        rsp_read= sd.open_query()
+        
+        i= 0
+        for k in enumerate(rsp_terms['facet_counts']['facet_fields']['regulates_closure']):
+            if i%2 == 0:
+                n= node(k[1])
+                if n.name not in self.nodes:
+                    self.nodes[n.name]= n 
+                    self.nodes[n.name].get_name(query_readable)
+                if n.name not in self.family:
+                    self.family[n.name]= sisters(n.name, self.threshold)
+            i+=1
+        
+        for k, val in enumerate(rsp_read['response']['docs']):
+            if val['id'] not in self.nodes:
+                continue
+            self.nodes[val['id']].get_name(val['annotation_class_label'])
+        
+        
+    def find_node_family(self, lambda_query_rlshp):
+        """
+        """
+        for n in iter(self.nodes):
+            self.nodes[n].find_family(self.solr_url, lambda_query_rlshp)
+            
+    def find_node_annotations(self, lambda_query_genes):
+        """
+        """
+        for n in iter(self.nodes):
+            self.nodes[n].find_genes(self.solr_url, lambda_query_genes)
+            if len(self.nodes[n].genes) < self.cutoff:
+                self.dropped[self.nodes[n].name]= self.nodes[n]
+    
+    def annotate_nodes(self, lambda_query_rlshp, lambda_query_genes):
+        """
+        """
+        self.find_node_family(lambda_query_rlshp)
+        self.find_node_annotations(lambda_query_genes)
+    
+    def find_families(self):
+        """
+        """
+        for node in self.nodes:
+            n= self.nodes[node]
+            for daughter in n.daughters:
+                
+                if daughter not in self.nodes:
+                    continue
+                if 'WBbt:0002367' == daughter:
+                    print('hi')
+                if len(self.nodes[daughter].genes) < self.threshold:
+                    
+                    #add sister
+                    self.family[n.name].add_sister(self.nodes[daughter])
+                    #place it in sister.dropped
+                    self.family[n.name].add_dropped(self.nodes[daughter])
+                    #but also in self.dropped
+                    self.dropped[n.name]= n
+                    
+                else:
+                    self.family[n.name].add_sister(self.nodes[daughter])
+        
+    def calculate_similarities(self):
+        """
+        """
+        for parent in self.family:
+            self.family[parent].calc_similarity(self.method)
+    
+    def kill(self):
+        """
+        """
+        for parent in self.family:
+            self.family[parent].kill()
+        
+            for killed in self.family[parent].dropped:
+                if killed.name in self.nodes:
+                    self.dropped[killed.name] = killed
+                    
+    def ceiling(self):
+        """
+        """
+        for parent in self.family:
+            if parent not in self.nodes:
+                continue
+                
+            if len(self.family[parent].sisters) == 0:
+                continue
+            
+            if len(self.family[parent].dropped) == 0:
+                self.dropped[self.nodes[parent].name]= self.nodes[parent]              
+    
+    def find_good(self):
+        """
+        """
+        for node in self.nodes:
+            if node not in self.dropped:
+                self.good[self.nodes[node].name]= self.nodes[node]
+        
+        
+def build_dictionary(wbbts, tissue_array, genes):
+    #given a list of tissues, find the genes associated with each tissue and 
+    #place them in a vector..... 
+    
+    mat= np.zeros(shape= (len(genes), len(wbbts)))
+    names= []
+    for i, gene in enumerate(genes):
+        for j, tissue in enumerate(wbbts):
+            if gene in wbbts[tissue].genes:
+                mat[i, j]= 1
+    for j, tissue in enumerate(wbbts):                
+        names.append(wbbts[tissue].good_name)
 
+    
+    cols= names
+    df= pd.DataFrame(mat, columns= cols)
+    df.insert(0, 'wbid', genes)
 
-
-
-
-
-
-
-
-
-
+    #drop the root term, for some reason it causes problems with hgt
+    if 'C. elegans Cell and Anatomy WBbt:0000100' in df.columns:
+        df.drop('C. elegans Cell and Anatomy WBbt:0000100', axis= 1, inplace= True)
+    return df        
+        
 #==============================================================================
 #==============================================================================
 #==============================================================================
@@ -250,7 +410,7 @@ if __name__ == '__main__':
     
     path= '/Users/dangeles/WormFiles/hgf_benchmarking/input/'
     #main solr url
-    solr_url = 'http://wobr.caltech.edu:8082/solr/anatomy/';
+    solr_url = 'http://wobr.caltech.edu:8082/solr/anatomy/'
 
     #queries must be lambda functions
     #query for terms. Finds terms that have x or more annotating genes
@@ -265,161 +425,38 @@ if __name__ == '__main__':
     #query for readable names
     query_readable= "select?qt=standard&fl=id,annotation_class_label&version=2.2&wt=json&indent=on&rows=100000&q=id:*&fq=document_category:ontology_class&fq=-is_obsolete:true"
     
-    threshold= .3
-    cutoff= 100
-    rd= solr_query(solr_url, query_readable)
-    readable= rd.open_query()
+    
+    queries= [query_terms, query_relation, query_genes, query_readable]
+    threshold= .95
+    cutoff= 25
     method= 'any'
-    min_annot= 5
+    min_annot= 2
+
+    trial1= ontology('tissue_ontology', cutoff, threshold, method, solr_url)
+    trial1.set_min_cutoff(5)
+    trial1.add_nodes(query_terms, query_readable)
+    trial1.find_node_annotations(query_genes)
+    trial1.find_node_family(query_relation)
+    trial1.find_families()
+    trial1.calculate_similarities()
+    print(len(trial1.dropped))
+    trial1.kill()
+    print(len(trial1.dropped))
+    trial1.ceiling()
+    trial1.find_good()
+    print(len(trial1.dropped))
+    print('final {0}'.format(len(trial1.good)))
+    #extract keys
     
-    fname= path + 'tissue_dictionary_cutoff{0}_threshold{1}_method{2}.csv'.format(cutoff, threshold, method)
-
-    
-    if threshold > 1-1/cutoff:
-        threshold= 1-1.5/cutoff
-
-    #get all terms
-    sq= solr_query(solr_url, query_terms(min_annot))
-    rsp_terms= sq.open_query()
-
-#==============================================================================
-#   cutoff terms
-#==============================================================================
-    #find all terms with more than cutoff annotations
-    wbbts= {}
-    sister_dict= {}
-    i= 0
-    for k in enumerate(rsp_terms['facet_counts']['facet_fields']['regulates_closure']):
-        if i%2 == 0:
-            n= node(k[1])
-            n.find_family(solr_url, query_relation)
-            n.find_genes(solr_url, query_genes)
-            wbbts[n.name]= n 
-            sister_dict[n.name]= sisters(n.name, threshold)
-        i+=1
-
-    print('No. of tissues in wbbts {0}'.format(len(wbbts)))
-                    
-    k= 0
-    for parent in sister_dict:
-        #count the sisters, find their similarity and kill them if they don't pass
-        if parent in wbbts:
-            for daughter in wbbts[parent].daughters:
-                if daughter in wbbts:
-                    sister_dict[parent].add_sister(wbbts[daughter])
-            
-            sister_dict[parent].calc_similarity(method)
-            sister_dict[parent].kill()
-            sister_dict[parent].trim(cutoff)
-    
-        #remove all sisters that were killed or trimmed from wbbts
-        for dropped in sister_dict[parent].dropped:
-            if dropped.name in wbbts:
-                del wbbts[dropped.name]
-    print('No. of tissues in wbbts after kill and trim: {0}'.format(len(wbbts)))
-        
-#==============================================================================
-#   reference terms
-#==============================================================================
-    #find all terms with more than min_annot genes and use it as a reference
-    ref= {}
-    ref_sisters={}
-    i= 0
-    for k in enumerate(rsp_terms['facet_counts']['facet_fields']['regulates_closure']):
-        if i%2 == 0:
-            n= node(k[1])
-            n.find_family(solr_url, query_relation)
-            ref[n.name]= n 
-            ref_sisters[n.name]= sisters(n.name, 1)
-        i+=1
-    print('No. of tissues in reference {0}'.format(len(ref)))   
-    
-    #find sisters in ref
-    k= 0
-    for s in ref_sisters:
-        #count the sisters, find their similarity and kill them if they don't pass
-        if s in ref:
-            for daughter in ref[s].daughters:
-                if daughter in ref:
-                    ref_sisters[s].add_sister(ref[daughter])
-                    
-#==============================================================================
-#   check completeness of sisters and pop parents (ceiling)           
-#==============================================================================
-    to_pop= []
-    for parent in wbbts:    
-        if len(sister_dict[parent].sisters) == len(ref_sisters[parent].sisters):
-            to_pop.append(parent)
-
-    to_pop= list(set(to_pop))
-    for p in to_pop:
-        wbbts.pop(p)
-    print('No. of tissues in wbbts after ceiling: {0}'.format(len(wbbts)))
-#==============================================================================
-#   get human readable names
-#==============================================================================
-    wbbts_listform= []
+    tissues= []
     genes= []
-    for thingy in readable['response']['docs']:
-        #annotate human readable
-        if thingy['id'] in wbbts.keys():
-            wbbts[thingy['id']].get_name(thingy['annotation_class_label'])
-            
-            genes= genes+wbbts[thingy['id']].genes
-            wbbts_listform.append(wbbts[thingy['id']].good_name)
-
+    
+    for n in trial1.good:
+        tissues.append(n)
+        genes= genes+trial1.good[n].genes    
     genes= list(set(genes))
-
-#==============================================================================
-#   build dictionary
-#==============================================================================
-    def build_dictionary(wbbts, tissue_array, genes):
-        #given a list of tissues, find the genes associated with each tissue and 
-        #place them in a vector..... 
     
-        mat= np.zeros(shape= (len(genes), len(wbbts)))
-        for i, gene in enumerate(genes):
-            for j, tissue in enumerate(wbbts):
-                if gene in wbbts[tissue].genes:
-                    mat[i, j]= 1
-
+    df= build_dictionary(trial1.good, tissues, genes)
     
-        cols= tissue_array
-        df= pd.DataFrame(mat, columns= cols)
-        df.insert(0, 'wbid', genes)
     
-        #drop the root term, for some reason it causes problems with hgt
-        if 'C. elegans Cell and Anatomy WBbt:0000100' in df.columns:
-            df.drop('C. elegans Cell and Anatomy WBbt:0000100', axis= 1, inplace= True)    
-    
-        return df
-        
-    
-    #tocsv
-    df= build_dictionary(wbbts, wbbts_listform, genes)
-    df.to_csv(fname, index= False)
-
-
-        
-        
-        
-       
-       
-       
-       
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                    
