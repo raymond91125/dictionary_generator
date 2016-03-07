@@ -407,10 +407,23 @@ if __name__ == '__main__':
     #this allows me to modify the query in predictable ways.
     #hope this is clear.
     
+    import argparse
+    import sys
     
-    path= '/Users/dangeles/WormFiles/hgf_benchmarking/input/'
+    parser= argparse.ArgumentParser(description= 'Run Dictionary Maker')
+    parser.add_argument('-t', "threshold", help= 'The redundancy threshold')
+    parser.add_argument("-c", 'cutoff', help= 'The annotation cutoff for each term')
+    parser.add_argument("-m", '--method', help= 'The method - defaults to \'any\' if not specified')
+    parser.add_argument("-mc", '--mincutoff', help= 'The minimum cutoff to fetch. Defaults to 2.')
+    parser.add_argument("-su", '--solrurl', help= 'The main body of the solr url.')
+    parser.add_argument('-f', "fname", help= 'Filename (complete with path) to save to')
+
+    
     #main solr url
-    solr_url = 'http://wobr.caltech.edu:8082/solr/anatomy/'
+    if parser.solrurl:
+        solr_url = parser.solrurl
+    else:
+        solr_url= 'http://wobr.caltech.edu:8082/solr/anatomy/'
 
     #queries must be lambda functions
     #query for terms. Finds terms that have x or more annotating genes
@@ -427,27 +440,61 @@ if __name__ == '__main__':
     
     
     queries= [query_terms, query_relation, query_genes, query_readable]
-    threshold= .95
-    cutoff= 25
-    method= 'any'
-    min_annot= 2
+    threshold= parser.threshold
+    cutoff= parser.cutoff
+    
+    if parser.method:
+        method= parser.method
+    else:
+        method= 'any'
+    
+    if parser.mincutoff:
+        min_annot= parser.mincutoff
+    else:
+        min_annot= 2
 
     trial1= ontology('tissue_ontology', cutoff, threshold, method, solr_url)
-    trial1.set_min_cutoff(5)
+    print('Object made')    
+    
+    print('Min cutoff set at: {0}....'.format(min_annot))
+    sys.stdout.flush()   
+    trial1.set_min_cutoff(min_annot)
+    
+    print('Fetching nodes.....')
+    sys.stdout.flush()    
     trial1.add_nodes(query_terms, query_readable)
+    
+    print('Annotating nodes')
+    sys.stdout.flush()    
     trial1.find_node_annotations(query_genes)
+
+
+    print('Finding node families...')
+    sys.stdout.flush()    
     trial1.find_node_family(query_relation)
+
+    print('Generating node family representation...')    
+    sys.stdout.flush()    
     trial1.find_families()
+
+    print('Calculating similarities and removing nodes with more than {0:.2} similarity...'.format(threshold))
+    sys.stdout.flush()    
     trial1.calculate_similarities()
-    print(len(trial1.dropped))
+
+    print('killing nodes that have less than {0} annotations...'.format(cutoff))
+    sys.stdout.flush()    
     trial1.kill()
-    print(len(trial1.dropped))
+
+    print('Applying ceiling...')    
+    sys.stdout.flush()    
     trial1.ceiling()
+
+    print('Generating final list of terms...')    
     trial1.find_good()
-    print(len(trial1.dropped))
-    print('final {0}'.format(len(trial1.good)))
+    print('No. of terms in dictionry: {0}'.format(len(trial1.good)))
     #extract keys
     
+    print('Generating file at {0}'.format(parser.fname))
     tissues= []
     genes= []
     
@@ -457,6 +504,6 @@ if __name__ == '__main__':
     genes= list(set(genes))
     
     df= build_dictionary(trial1.good, tissues, genes)
-    
+    df.to_csv(parser.fname, index= False)
     
                     
