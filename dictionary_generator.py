@@ -411,17 +411,18 @@ if __name__ == '__main__':
     import sys
     
     parser= argparse.ArgumentParser(description= 'Run Dictionary Maker')
-    parser.add_argument('-t', "threshold", help= 'The redundancy threshold')
-    parser.add_argument("-c", 'cutoff', help= 'The annotation cutoff for each term')
-    parser.add_argument("-m", '--method', help= 'The method - defaults to \'any\' if not specified')
-    parser.add_argument("-mc", '--mincutoff', help= 'The minimum cutoff to fetch. Defaults to 2.')
-    parser.add_argument("-su", '--solrurl', help= 'The main body of the solr url.')
-    parser.add_argument('-f', "fname", help= 'Filename (complete with path) to save to')
+    parser.add_argument("threshold", help= 'The redundancy threshold', type= float)
+    parser.add_argument('cutoff', help= 'The annotation cutoff for each term', type= int)
+    parser.add_argument("fname", help= 'Filename (complete with path) to save to', type= str)
+    parser.add_argument("-m", '--method', help= 'The method - defaults to \'any\' if not specified', type= str)
+    parser.add_argument("-mc", '--mincutoff', help= 'The minimum cutoff to fetch. Defaults to 2.', type= int)
+    parser.add_argument("-su", '--solrurl', help= 'The main body of the solr url.', type= str)
+    args = parser.parse_args()
 
     
     #main solr url
-    if parser.solrurl:
-        solr_url = parser.solrurl
+    if args.solrurl:
+        solr_url = args.solrurl
     else:
         solr_url= 'http://wobr.caltech.edu:8082/solr/anatomy/'
 
@@ -440,16 +441,16 @@ if __name__ == '__main__':
     
     
     queries= [query_terms, query_relation, query_genes, query_readable]
-    threshold= parser.threshold
-    cutoff= parser.cutoff
+    threshold= args.threshold
+    cutoff= args.cutoff
     
-    if parser.method:
-        method= parser.method
+    if args.method:
+        method= args.method
     else:
         method= 'any'
     
-    if parser.mincutoff:
-        min_annot= parser.mincutoff
+    if args.mincutoff:
+        min_annot= args.mincutoff
     else:
         min_annot= 2
 
