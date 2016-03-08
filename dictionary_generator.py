@@ -495,7 +495,7 @@ if __name__ == '__main__':
     print('No. of terms in dictionry: {0}'.format(len(trial1.good)))
     #extract keys
     
-    print('Generating file at {0}'.format(parser.fname))
+    print('Generating file at {0}'.format(args.fname))
     tissues= []
     genes= []
     
@@ -505,6 +505,6 @@ if __name__ == '__main__':
     genes= list(set(genes))
     
     df= build_dictionary(trial1.good, tissues, genes)
-    df.to_csv(parser.fname, index= False)
+    df.to_csv(args.fname, index= False)
     
                     
