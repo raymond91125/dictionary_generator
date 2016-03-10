@@ -492,7 +492,7 @@ if __name__ == '__main__':
 
     print('Generating final list of terms...')    
     trial1.find_good()
-    print('No. of terms in dictionry: {0}'.format(len(trial1.good)))
+    print('No. of terms in dictionary: {0}'.format(len(trial1.good)))
     #extract keys
     
     print('Generating file at {0}'.format(args.fname))
