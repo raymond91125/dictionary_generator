@@ -432,47 +432,80 @@ if __name__ == '__main__':
                         type=int)
     parser.add_argument("-su", '--solrurl',
                         help='The main body of the solr url.', type=str)
+    parser.add_argument("-o", "--ontology",
+                        help='One of `phenotype`, `tissue` or `gene`. Only\
+                        works if --solrurl has not been specified',
+                        type=str, default='anatomy',
+                        choices=['anatomy', 'phenotype', 'go'])
+
     args = parser.parse_args()
 
     # main solr url
     if args.solrurl:
         solr_url = args.solrurl
     else:
-        solr_url = 'http://wobr.caltech.edu:8082/solr/anatomy/'
+        # solr_url = 'http://wobr.caltech.edu:8082/solr/anatomy/'
+        s = 'http://wobr.caltech.edu:8082/solr/{0}/'
+        solr_url = s.format(args.ontology)
 
     # queries must be lambda functions
     # query for terms. Finds terms that have x or more annotating genes
-    def query_terms(x):
-        """Search solr for terms in the ontology."""
-        return 'select?qt=standard&indent=on&wt=json&version=2.2&fl=\
-id&start=0&rows=0&q=document_category:bioentity&facet=true&facet.field=\
-regulates_closure&facet.limit=-1&facet.mincount={0}&facet.sort=count&\
-fq=source:%22WB%22&fq=-qualifier:%22not%22'.format(x)
+    def query_terms(x, ontology=args.ontology):
+        """Search solr for terms (nodes) in the ontology."""
+        if ontology != 'go':
+            s = 'select?qt=standard&indent=on&wt=json&version=2.2&fl=' +\
+                'id&start=0&rows=0&q=document_category:bioentity' +\
+                '&facet=true&facet.field=regulates_closure&' +\
+                'facet.limit=-1&facet.mincount={0}&facet.sort' +\
+                '=count&fq=source:%22WB%22&fq=-qualifier:%22not%22'
+            return s.format(x)
+        else:
+            s = 'select?qt=standard&indent=on&wt=json&version=2.2&fl=' +\
+                'id&start=0&rows=1&q=document_category:bioentity&facet=' +\
+                'true&facet.field=regulates_closure&facet.limit=-1&' +\
+                'facet.mincount={0}&facet.sort=count&fq=source:%22WB' +\
+                '%22&fq=taxon:%22NCBITaxon:6239%22&fq=-qualifier:%22not%22'
+            return s.format(x)
 
-    def query_relation(x):
+    def query_relation(x, ontology=args.ontology):
         """
-        query for relationships.
+        query for relationships between nodes.
 
         given a wbbt ID `x`, find the nodes connected to it.
+        Links are slightly different for [anatomy, phenotype] and GO, because
+        in WormBase, the GO solr database includes all other worm species as
+        well.
         """
-        return "select?qt=standard&fl=topology_graph_json&\
-    version=2.2&wt=json&indent=on&rows=1&q=id:%22{0}%22&fq=document_category:\
-    %22ontology_class%22".format(x)
+        if ontology != 'go':
+            s = "select?qt=standard&fl=topology_graph_json&" +\
+                "version=2.2&wt=json&indent=on&rows=1&q=id:" +\
+                "%22{0}%22&fq=document_category:%22ontology_class%22"
+            return s.format(x)
+        else:
+            s = 'select?qt=standard&indent=on&wt=json&version=2.2&fl' +\
+                '=id&start=0&rows=0&q=document_category:bioentity' +\
+                '&facet=true&facet.field=regulates_closure&facet' +\
+                '.limit=-1&facet.mincount={0}&facet.sort=count&' +\
+                'fq=source:%22WB%22&fq=-qualifier:%22not%22'
+            return s.format(x)
 
     def query_genes(x):
         """
-        query for number of genes.
+        find the genes associated with every node.
 
         given a wbbt ID `x`, open URL that contains genes assoc. with it.
         """
-        return "select?qt=standard&indent=on&wt=json&version=2.2&\
-    fl=id&start=0&rows=10000&q=document_category:bioentity&fq=source:%22WB%22&\
-    fq=-qualifier:%22not%22&fq=regulates_closure:%22{0}%22".format(x)
+        s = "select?qt=standard&indent=on&wt=json&version=2.2&" +\
+            "fl=id&start=0&rows=10000&q=document_category:bioentity" +\
+            "&fq=source:%22WB%22&fq=-qualifier:%22not%22&" +\
+            "fq=regulates_closure:%22{0}%22"
+        return s.format(x)
 
     # query for readable names
-    query_readable = "select?qt=standard&fl=id,annotation_class_label&version\
-    =2.2&wt=json&indent=on&rows=100000&q=id:*&fq=document_category\
-    :ontology_class&fq=-is_obsolete:true"
+    query_readable = "select?qt=standard&fl=id,annotation_class_label" +\
+                     "&version=2.2&wt=json&indent=on&rows=100000&q=id:" +\
+                     "*&fq=document_category:ontology_class&" +\
+                     "fq=-is_obsolete:true"
 
     queries = [query_terms, query_relation, query_genes, query_readable]
     threshold = args.threshold
