@@ -356,7 +356,8 @@ class ontology():
         """Fetch the surviving nodes."""
         for node in self.nodes:
             if node not in self.dropped:
-                self.good[self.nodes[node].name] = self.nodes[node]
+                # self.good[self.nodes[node].name] = self.nodes[node]
+                self.good[self.nodes[node].good_name] = self.nodes[node]
 
 
 def build_dictionary(wbbts, tissue_array, genes):
