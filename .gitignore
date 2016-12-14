@@ -2,3 +2,6 @@
 __pycache__/dictionary_generator.cpython-35.pyc
 
 .DS_Store
+
+# ignore csv files.
+.csv
