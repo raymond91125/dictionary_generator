@@ -424,7 +424,7 @@ if __name__ == '__main__':
     if args.solrurl:
         solr_url = args.solrurl
     else:
-        solr_url= 'http://wobr.caltech.edu:8081/solr/anatomy/'
+        solr_url= 'http://localhost:8080/solr/anatomy/'
 
     #queries must be lambda functions
     #query for terms. Finds terms that have x or more annotating genes
