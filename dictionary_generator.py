@@ -446,7 +446,7 @@ if __name__ == '__main__':
         solr_url = args.solrurl
     else:
         # solr_url = 'http://wobr.caltech.edu:8082/solr/anatomy/'
-        s = 'http://wobr.caltech.edu:8082/solr/{0}/'
+        s = 'http://localhost:8080/solr/{0}/'
         solr_url = s.format(args.ontology)
 
     # queries must be lambda functions
