@@ -195,7 +195,7 @@ class sisters(object):
 
     def calc_similarity(self, method):
         """
-        Calculate the family wise similarity for this object.
+        Calculate the family-wise similarity for this object.
 
         A method to calculate the similarity of a set of sisters to each other
         by finding the cardinality of the total gene set and the cardinality of
@@ -354,10 +354,20 @@ class ontology():
 
     def find_good(self):
         """Fetch the surviving nodes."""
+        # an ad hoc list of anatomy terms that are too essential to throw
+        # away... mainly top level terms
+        obligatory = ['WBbt:0005772', 'WBbt:0005730', 'WBbt:0005736',
+                      'WBbt:0005737', 'WBbt:0005735', 'WBbt:0005747']
+
         for node in self.nodes:
             if node not in self.dropped:
                 # self.good[self.nodes[node].name] = self.nodes[node]
                 self.good[self.nodes[node].good_name] = self.nodes[node]
+
+        for o in obligatory:
+            if o in self.dropped:
+                self.good[self.nodes[o].good_name] = self.nodes[o]
+                print('Returned term {0} to dictionary'.format(o))
 
 
 def build_dictionary(wbbts, tissue_array, genes):
@@ -434,7 +444,7 @@ if __name__ == '__main__':
     parser.add_argument("-su", '--solrurl',
                         help='The main body of the solr url.', type=str)
     parser.add_argument("-o", "--ontology",
-                        help='One of `phenotype`, `tissue` or `gene`. Only\
+                        help='One of `phenotype`, `anatomy` or `gene`. Only\
                         works if --solrurl has not been specified',
                         type=str, default='anatomy',
                         choices=['anatomy', 'phenotype', 'go'])
