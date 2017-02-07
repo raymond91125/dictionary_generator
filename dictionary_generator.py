@@ -487,18 +487,10 @@ if __name__ == '__main__':
         in WormBase, the GO solr database includes all other worm species as
         well.
         """
-        if ontology != 'go':
-            s = "select?qt=standard&fl=topology_graph_json&" +\
-                "version=2.2&wt=json&indent=on&rows=1&q=id:" +\
-                "%22{0}%22&fq=document_category:%22ontology_class%22"
-            return s.format(x)
-        else:
-            s = 'select?qt=standard&indent=on&wt=json&version=2.2&fl' +\
-                '=id&start=0&rows=0&q=document_category:bioentity' +\
-                '&facet=true&facet.field=regulates_closure&facet' +\
-                '.limit=-1&facet.mincount={0}&facet.sort=count&' +\
-                'fq=source:%22WB%22&fq=-qualifier:%22not%22'
-            return s.format(x)
+        s = "select?qt=standard&fl=topology_graph_json&" +\
+            "version=2.2&wt=json&indent=on&rows=1&q=id:" +\
+            "%22{0}%22&fq=document_category:%22ontology_class%22"
+        return s.format(x)
 
     def query_genes(x):
         """
