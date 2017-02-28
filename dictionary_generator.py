@@ -455,28 +455,20 @@ if __name__ == '__main__':
     if args.solrurl:
         solr_url = args.solrurl
     else:
-        # solr_url = 'http://wobr.caltech.edu:8082/solr/anatomy/'
-        s = 'http://localhost:8080/solr/{0}/'
+        # s = 'http://localhost:8080/solr/{0}/'
+        s = 'http://wobr.caltech.edu:8082/solr/{0}/'   # for testing
         solr_url = s.format(args.ontology)
 
     # queries must be lambda functions
     # query for terms. Finds terms that have x or more annotating genes
     def query_terms(x, ontology=args.ontology):
         """Search solr for terms (nodes) in the ontology."""
-        if ontology != 'go':
-            s = 'select?qt=standard&indent=on&wt=json&version=2.2&fl=' +\
-                'id&start=0&rows=0&q=document_category:bioentity' +\
-                '&facet=true&facet.field=regulates_closure&' +\
-                'facet.limit=-1&facet.mincount={0}&facet.sort' +\
-                '=count&fq=source:%22WB%22&fq=-qualifier:%22not%22'
-            return s.format(x)
-        else:
-            s = 'select?qt=standard&indent=on&wt=json&version=2.2&fl=' +\
-                'id&start=0&rows=1&q=document_category:bioentity&facet=' +\
-                'true&facet.field=regulates_closure&facet.limit=-1&' +\
-                'facet.mincount={0}&facet.sort=count&fq=source:%22WB' +\
-                '%22&fq=taxon:%22NCBITaxon:6239%22&fq=-qualifier:%22not%22'
-            return s.format(x)
+        s = 'select?qt=standard&indent=on&wt=json&version=2.2&fl=' +\
+            'id&start=0&rows=1&q=document_category:bioentity&facet=' +\
+            'true&facet.field=regulates_closure&facet.limit=-1&' +\
+            'facet.mincount={0}&facet.sort=count&fq=source:%22WB' +\
+            '%22&fq=taxon:%22NCBITaxon:6239%22&fq=-qualifier:%22not%22'
+        return s.format(x)
 
     def query_relation(x, ontology=args.ontology):
         """
