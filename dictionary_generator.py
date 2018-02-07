@@ -78,6 +78,7 @@ class node():
     def get_name(self, human_readable):
         """Generate a good name (human readable + WBid)."""
         self.good_name = human_readable + ' ' + self.name
+        self.good_name = self.good_name.replace(',', '')
 
     def add_daughter(self, daughter):
         """Add a daughter to this node."""
